@@ -35,6 +35,8 @@
 #include <QKeyEvent>
 #include <QMimeData>
 #include <QVector>
+#include <QWindow>
+#include <QMainWindow>
 #ifndef _WIN32
 #include <QSocketNotifier>
 #include <unistd.h>
@@ -1442,6 +1444,9 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
                 actScreenSize[i]->setData(QVariant(data));
                 connect(actScreenSize[i], &QAction::triggered, this, &MainWindow::onChangeScreenSize);
             }
+            actScreenSize[5] = submenu->addAction(QString("NK Custom").arg(5));
+            actScreenSize[5]->setData(QVariant(5));
+            connect(actScreenSize[5], &QAction::triggered, this, &MainWindow::onChangeScreenSize);
         }
         {
             QMenu* submenu = menu->addMenu("Screen rotation");
@@ -2570,6 +2575,11 @@ void MainWindow::onChangeScreenSize()
 {
     int factor = ((QAction*)sender())->data().toInt();
     QSize diff = size() - panel->size();
+
+    // JDL: added for hopefully screen resize.
+    if(factor == 5)
+        move(0,0);
+    
     resize(dynamic_cast<ScreenHandler*>(panel)->screenGetMinSize(factor) + diff);
 }
 

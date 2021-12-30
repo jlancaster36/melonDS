@@ -215,6 +215,8 @@ public:
     void loadROM(QByteArray *romData, QString archiveFileName, QString romFileName);
 
     void onAppStateChanged(Qt::ApplicationState state);
+    //JDL added to declare the Qwindow set position function
+    void setPosition(int posx, int posy);
 
 protected:
     void resizeEvent(QResizeEvent* event) override;
