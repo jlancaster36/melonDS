@@ -2577,10 +2577,12 @@ void MainWindow::onChangeScreenSize()
     QSize diff = size() - panel->size();
 
     // JDL: added for hopefully screen resize.
-    if(factor == 5)
+    if(factor == 5){
+        factor = 4;
+        resize(1024, 1200);
         move(0,0);
-    
-    resize(dynamic_cast<ScreenHandler*>(panel)->screenGetMinSize(factor) + diff);
+    } else
+        resize(dynamic_cast<ScreenHandler*>(panel)->screenGetMinSize(factor) + diff);
 }
 
 void MainWindow::onChangeScreenRotation(QAction* act)
