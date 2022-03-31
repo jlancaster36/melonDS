@@ -1,5 +1,5 @@
 /*
-    Copyright 2016-2021 Arisotura
+    Copyright 2016-2022 melonDS team
 
     This file is part of melonDS.
 
@@ -127,8 +127,8 @@ void LoadDefaultFirmware()
     if (NDS::ConsoleType == 1)
     {
         Firmware[0x1D] = 0x57; // DSi
-        Firmware[0x2F] = 0x18;
-        Firmware[0x1FD] = 0x02;
+        Firmware[0x2F] = 0x0F;
+        Firmware[0x1FD] = 0x01;
         Firmware[0x1FE] = 0x20;
     }
     else
@@ -215,37 +215,47 @@ void LoadDefaultFirmware()
     // wifi access points
     // TODO: WFC ID??
 
-    u32 apdata = userdata - 0x400;
-    memset(&Firmware[apdata], 0, 0x300);
-
-    strcpy((char*)&Firmware[apdata+0x40], "melonAP");
-    if (NDS::ConsoleType == 1) *(u16*)&Firmware[apdata+0xEA] = 1400;
-    Firmware[apdata+0xEF] = 0x01;
-    *(u16*)&Firmware[apdata+0xFE] = CRC16(&Firmware[apdata], 0xFE, 0x0000);
-
-    apdata += 0x100;
-    Firmware[apdata+0xE7] = 0xFF;
-    Firmware[apdata+0xEF] = 0x01;
-    *(u16*)&Firmware[apdata+0xFE] = CRC16(&Firmware[apdata], 0xFE, 0x0000);
-
-    apdata += 0x100;
-    Firmware[apdata+0xE7] = 0xFF;
-    Firmware[apdata+0xEF] = 0x01;
-    *(u16*)&Firmware[apdata+0xFE] = CRC16(&Firmware[apdata], 0xFE, 0x0000);
-
-    if (NDS::ConsoleType == 1)
+    FILE* f = Platform::OpenLocalFile("wfcsettings.bin", "rb");
+    if (f)
     {
-        apdata = userdata - 0xA00;
-        Firmware[apdata+0xE7] = 0xFF;
+        u32 apdata = userdata - 0xA00;
+        fread(&Firmware[apdata], 0x900, 1, f);
+        fclose(f);
+    }
+    else
+    {
+        u32 apdata = userdata - 0x400;
+        memset(&Firmware[apdata], 0, 0x300);
+
+        strcpy((char*)&Firmware[apdata+0x40], "melonAP");
+        if (NDS::ConsoleType == 1) *(u16*)&Firmware[apdata+0xEA] = 1400;
+        Firmware[apdata+0xEF] = 0x01;
         *(u16*)&Firmware[apdata+0xFE] = CRC16(&Firmware[apdata], 0xFE, 0x0000);
 
-        apdata += 0x200;
+        apdata += 0x100;
         Firmware[apdata+0xE7] = 0xFF;
+        Firmware[apdata+0xEF] = 0x01;
         *(u16*)&Firmware[apdata+0xFE] = CRC16(&Firmware[apdata], 0xFE, 0x0000);
 
-        apdata += 0x200;
+        apdata += 0x100;
         Firmware[apdata+0xE7] = 0xFF;
+        Firmware[apdata+0xEF] = 0x01;
         *(u16*)&Firmware[apdata+0xFE] = CRC16(&Firmware[apdata], 0xFE, 0x0000);
+
+        if (NDS::ConsoleType == 1)
+        {
+            apdata = userdata - 0xA00;
+            Firmware[apdata+0xE7] = 0xFF;
+            *(u16*)&Firmware[apdata+0xFE] = CRC16(&Firmware[apdata], 0xFE, 0x0000);
+
+            apdata += 0x200;
+            Firmware[apdata+0xE7] = 0xFF;
+            *(u16*)&Firmware[apdata+0xFE] = CRC16(&Firmware[apdata], 0xFE, 0x0000);
+
+            apdata += 0x200;
+            Firmware[apdata+0xE7] = 0xFF;
+            *(u16*)&Firmware[apdata+0xFE] = CRC16(&Firmware[apdata], 0xFE, 0x0000);
+        }
     }
 }
 
@@ -463,6 +473,7 @@ void SetupDirectBoot(bool dsi)
     }
 }
 
+u32 GetFirmwareLength() { return FirmwareLength; }
 u8 GetConsoleType() { return Firmware[0x1D]; }
 u8 GetWifiVersion() { return Firmware[0x2F]; }
 u8 GetNWifiVersion() { return Firmware[0x1FD]; } // for DSi; will return 0xFF on a DS
@@ -563,6 +574,7 @@ void Write(u8 val, u32 hold)
 
     default:
         printf("unknown firmware SPI command %02X\n", CurCmd);
+        Data = 0xFF;
         break;
     }
 
@@ -573,9 +585,19 @@ void Write(u8 val, u32 hold)
             FILE* f = Platform::OpenLocalFile(FirmwarePath, "r+b");
             if (f)
             {
-                u32 cutoff = 0x7FA00 & FirmwareMask;
+                u32 cutoff = ((NDS::ConsoleType==1) ? 0x7F400 : 0x7FA00) & FirmwareMask;
                 fseek(f, cutoff, SEEK_SET);
                 fwrite(&Firmware[cutoff], FirmwareLength-cutoff, 1, f);
+                fclose(f);
+            }
+        }
+        else
+        {
+            FILE* f = Platform::OpenLocalFile("wfcsettings.bin", "wb");
+            if (f)
+            {
+                u32 cutoff = 0x7F400 & FirmwareMask;
+                fwrite(&Firmware[cutoff], 0x900, 1, f);
                 fclose(f);
             }
         }
@@ -617,11 +639,14 @@ void Reset()
     Registers[4] = 0x40;
 
     RegMasks[0] = 0x7F;
-    RegMasks[1] = 0x01;
+    RegMasks[1] = 0x00;
     RegMasks[2] = 0x01;
     RegMasks[3] = 0x03;
     RegMasks[4] = 0x0F;
 }
+
+bool GetBatteryLevelOkay() { return !Registers[1]; }
+void SetBatteryLevelOkay(bool okay) { Registers[1] = okay ? 0x00 : 0x01; }
 
 void DoSavestate(Savestate* file)
 {
@@ -659,6 +684,7 @@ void Write(u8 val, u32 hold)
 
     if (DataPos == 1)
     {
+        // TODO: DSi-specific registers in DSi mode
         u32 regid = Index & 0x07;
 
         if (Index & 0x80)
@@ -891,6 +917,8 @@ void WriteCnt(u16 val)
         }
     }
 
+    // TODO: presumably the transfer speed can be changed during a transfer
+    // like with the NDSCart SPI interface
     Cnt = (Cnt & 0x0080) | (val & 0xCF03);
     if (val & 0x0400) printf("!! CRAPOED 16BIT SPI MODE\n");
     if (Cnt & (1<<7)) printf("!! CHANGING SPICNT DURING TRANSFER: %04X\n", val);
@@ -925,8 +953,7 @@ u8 ReadData()
 void WriteData(u8 val)
 {
     if (!(Cnt & (1<<15))) return;
-
-    if (Cnt & (1<<7)) printf("!! WRITING AUXSPIDATA DURING PENDING TRANSFER\n");
+    if (Cnt & (1<<7)) return;
 
     Cnt |= (1<<7);
     switch (Cnt & 0x0300)
